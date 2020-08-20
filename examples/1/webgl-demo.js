@@ -100,7 +100,7 @@
 
     // 配置并使用纹理
     function loadTexture(gl, image, texture, u_Sampler, n) {
-      gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, 1); // Flip the image's y axis
+      gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, 1); // Flip the image's y axis ！！！important 不然是倒的
       gl.activeTexture(gl.TEXTURE0);
       gl.bindTexture(gl.TEXTURE_2D, texture);
 
