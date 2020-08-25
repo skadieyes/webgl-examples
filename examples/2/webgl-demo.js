@@ -3,33 +3,6 @@
     function isPowerOf2(value) {
       return (value & (value - 1)) === 0;
     }
-
-    function loadImage(url, callback) {
-  var image = new Image();
-  image.src = url;
-  image.onload = callback;
-  return image;
-}
-
-function loadImages(urls, callback) {
-  var images = [];
-  var imagesToLoad = urls.length;
-
-  // Called each time an image finished
-  // loading.
-  var onImageLoad = function() {
-    --imagesToLoad;
-    // If all the images are loaded call the callback.
-    if (imagesToLoad === 0) {
-      callback(images);
-    }
-  };
-
-  for (var ii = 0; ii < imagesToLoad; ++ii) {
-    var image = loadImage(urls[ii], onImageLoad);
-    images.push(image);
-  }
-}
     /**
      * createShader
      * @param {*} gl 
@@ -101,16 +74,6 @@ function loadImages(urls, callback) {
       gl.vertexAttribPointer(a_TexCoord, 2, gl.FLOAT, false, FSIZE * 4, FSIZE * 2);
       gl.enableVertexAttribArray(a_TexCoord);
       return n;
-    }
-
-    // 初始化纹理，加载图像
-    function initTextures(gl, program, url, callback) {
-      let image = new Image();
-      // image.crossOrigin = "Anonymous"
-      image.src = url;
-      image.onload = () => {
-        callback(image)
-      }
     }
 
     // 配置并使用纹理
@@ -187,8 +150,8 @@ function loadImages(urls, callback) {
         var u_Sampler = gl.getUniformLocation(program, 'u_Sampler');
         var u_Sampler1 = gl.getUniformLocation(program, 'u_Sampler1');
         // set which texture units to render with.
-        var texture1 = loadTexture(gl, images[0], texture1, u_Sampler, n) // texture unit0
-        var texture2 = loadTexture(gl, images[1], texture2, u_Sampler1, n) // texture unit1
+        var texture1 = loadTexture(gl, images[0]) // texture unit0
+        var texture2 = loadTexture(gl, images[1]) // texture unit1
         gl.uniform1i(u_Sampler, 0);
         gl.uniform1i(u_Sampler1, 1);
         gl.activeTexture(gl.TEXTURE0);
