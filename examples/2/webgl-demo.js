@@ -3,6 +3,33 @@
     function isPowerOf2(value) {
       return (value & (value - 1)) === 0;
     }
+
+    function loadImage(url, callback) {
+  var image = new Image();
+  image.src = url;
+  image.onload = callback;
+  return image;
+}
+
+function loadImages(urls, callback) {
+  var images = [];
+  var imagesToLoad = urls.length;
+
+  // Called each time an image finished
+  // loading.
+  var onImageLoad = function() {
+    --imagesToLoad;
+    // If all the images are loaded call the callback.
+    if (imagesToLoad === 0) {
+      callback(images);
+    }
+  };
+
+  for (var ii = 0; ii < imagesToLoad; ++ii) {
+    var image = loadImage(urls[ii], onImageLoad);
+    images.push(image);
+  }
+}
     /**
      * createShader
      * @param {*} gl 
@@ -78,44 +105,33 @@
 
     // 初始化纹理，加载图像
     function initTextures(gl, program, url, callback) {
-      var texture = gl.createTexture();   // Create a texture object
-      if (!texture) {
-        console.log('Failed to create the texture object');
-        return false;
-      }
-
       let image = new Image();
       // image.crossOrigin = "Anonymous"
       image.src = url;
       image.onload = () => {
-        callback(image, texture)
+        callback(image)
       }
     }
 
     // 配置并使用纹理
-    function loadTexture(gl, image, texture, u_Sampler, n) {
+    function loadTexture(gl, image) {
       gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, 1); // Flip the image's y axis ！！！important 不然是倒的
-      gl.activeTexture(gl.TEXTURE0);
+
+      var texture = gl.createTexture();
       gl.bindTexture(gl.TEXTURE_2D, texture);
 
-      if (isPowerOf2(image.width) && isPowerOf2(image.height)) {
-        // 是 2 的幂，一般用贴图
-        gl.generateMipmap(gl.TEXTURE_2D);
-      } else {
-        // 不是 2 的幂，关闭贴图并设置包裹模式（不需要重复）为到边缘
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
-      }
-      // Set the texture image
-      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGB, gl.RGB, gl.UNSIGNED_BYTE, image);
+      // Set the parameters so we can render any size image.
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+
+      // Upload the image into the texture.
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, image);
 
       // Set the texture unit 0 to the sampler
-      gl.uniform1i(u_Sampler, 0);
+      return texture
 
-      gl.clear(gl.COLOR_BUFFER_BIT);   // Clear <canvas>
-
-      gl.drawArrays(gl.TRIANGLE_STRIP, 0, n); // Draw the rectangle
     }
 
     function main() {
@@ -130,6 +146,7 @@
         attribute vec4 a_Position;
         attribute vec2 a_TexCoord;
         varying vec2 v_TexCoord;
+
         void main() {
           gl_Position = a_Position;
           v_TexCoord = a_TexCoord;
@@ -138,12 +155,14 @@
       // Fragment shader program
       const FSHADER_SOURCE = `
         precision mediump float;
+        uniform sampler2D u_Sampler;
         uniform sampler2D u_Sampler1;
         // 纹理坐标插值
         varying vec2 v_TexCoord;
         void main() {
-          // 获取纹素
-          gl_FragColor = texture2D(u_Sampler1, v_TexCoord);
+          vec4 color0 = texture2D(u_Sampler, v_TexCoord);
+          vec4 color1 = texture2D(u_Sampler1, v_TexCoord);
+          gl_FragColor = color0 * color1;
         }`
       var vertexShader = createShader(gl, gl.VERTEX_SHADER, VSHADER_SOURCE);
       var fragmentShader = createShader(gl, gl.FRAGMENT_SHADER, FSHADER_SOURCE);
@@ -160,13 +179,26 @@
 
       gl.clearColor(0.0, 0.0, 0.0, 1.0);
 
-
-      initTextures(gl, program, "./../../image/mwzz.jpeg", (image1, texture1) => {
+      loadImages([
+        "./../../image/mwzz.jpeg",
+        "./../../image/cat.jpg",
+      ], (images) => {
         // 对 image 进行下一步处理
-              // Get the storage location of u_Sampler
-        var u_Sampler = gl.getUniformLocation(program, 'u_Sampler1');
-        loadTexture(gl, image1, texture1, u_Sampler, n)
-      })
+        var u_Sampler = gl.getUniformLocation(program, 'u_Sampler');
+        var u_Sampler1 = gl.getUniformLocation(program, 'u_Sampler1');
+        // set which texture units to render with.
+        var texture1 = loadTexture(gl, images[0], texture1, u_Sampler, n) // texture unit0
+        var texture2 = loadTexture(gl, images[1], texture2, u_Sampler1, n) // texture unit1
+        gl.uniform1i(u_Sampler, 0);
+        gl.uniform1i(u_Sampler1, 1);
+        gl.activeTexture(gl.TEXTURE0);
+        gl.bindTexture(gl.TEXTURE_2D, texture1);
+        gl.activeTexture(gl.TEXTURE1);
+        gl.bindTexture(gl.TEXTURE_2D, texture2);   
+        gl.clear(gl.COLOR_BUFFER_BIT);   // Clear <canvas>
+        gl.drawArrays(gl.TRIANGLE_STRIP, 0, n); // Draw the rectangle
+      });
     }
 
     main();
+    
