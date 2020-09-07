@@ -68,10 +68,8 @@
         1.0, -1.0, 1.0, 0.0,
       ]);
       var n = 4; // The number of vertices
-
       // 为 WebGL 指定着色程序
       gl.useProgram(program);
-
       // Create the buffer object
       var vertexTexCoordBuffer = gl.createBuffer();
       if (!vertexTexCoordBuffer) {
@@ -103,18 +101,15 @@
       return n;
     }
     // 配置并使用纹理
-    function loadTexture(gl, image) {
-      gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, 1); // Flip the image's y axis ！！！important 不然是倒的
-
+    function loadTexture(gl, image, flip) {
       var texture = gl.createTexture();
       gl.bindTexture(gl.TEXTURE_2D, texture);
-
       // Set the parameters so we can render any size image.
       gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
       gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
       gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
       gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
-
+      gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, flip)
       // Upload the image into the texture.
       gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, image);
 
@@ -138,20 +133,42 @@
 
         void main() {
           gl_Position = a_Position;
-          v_TexCoord = a_TexCoord;
+          v_TexCoord = a_TexCoord.xy;
         }`
 
       // Fragment shader program
       const FSHADER_SOURCE = `
-        precision mediump float;
+        precision highp float;
+        varying highp vec2 v_TexCoord;
         uniform sampler2D u_Sampler;
         uniform sampler2D u_Sampler1;
-        // 纹理坐标插值
-        varying vec2 v_TexCoord;
+
         void main() {
-          vec4 color0 = texture2D(u_Sampler, v_TexCoord);
-          vec4 color1 = texture2D(u_Sampler1, v_TexCoord);
-          gl_FragColor = color0 * color1;
+          highp vec4 textureColor = texture2D(u_Sampler, v_TexCoord);
+     
+          highp float blueColor = textureColor.b * 63.0;
+     
+          highp vec2 quad1;
+          quad1.y = floor(floor(blueColor) / 8.0);
+          quad1.x = floor(blueColor) - (quad1.y * 8.0);
+     
+          highp vec2 quad2;
+          quad2.y = floor(ceil(blueColor) / 8.0);
+          quad2.x = ceil(blueColor) - (quad2.y * 8.0);
+     
+          highp vec2 texPos1;
+          texPos1.x = (quad1.x * 0.125) + 0.5/512.0 + ((0.125 - 1.0/512.0) * textureColor.r);
+          texPos1.y = (quad1.y * 0.125) + 0.5/512.0 + ((0.125 - 1.0/512.0) * textureColor.g);
+     
+          highp vec2 texPos2;
+          texPos2.x = (quad2.x * 0.125) + 0.5/512.0 + ((0.125 - 1.0/512.0) * textureColor.r);
+          texPos2.y = (quad2.y * 0.125) + 0.5/512.0 + ((0.125 - 1.0/512.0) * textureColor.g);
+     
+          lowp vec4 newColor1 = texture2D(u_Sampler1, texPos1);
+          lowp vec4 newColor2 = texture2D(u_Sampler1, texPos2);
+     
+          lowp vec4 newColor = mix(newColor1, newColor2, fract(blueColor));
+          gl_FragColor = mix(textureColor, vec4(newColor.rgb, textureColor.w), 0.5);
         }`
       var vertexShader = createShader(gl, gl.VERTEX_SHADER, VSHADER_SOURCE);
       var fragmentShader = createShader(gl, gl.FRAGMENT_SHADER, FSHADER_SOURCE);
@@ -169,21 +186,22 @@
       gl.clearColor(0.0, 0.0, 0.0, 1.0);
 
       loadImages([
-        "./../../image/mwzz.jpeg",
         "./../../image/cat.jpg",
+        "./../../image/lut2.jpeg",
       ], (images) => {
         // 对 image 进行下一步处理
         var u_Sampler = gl.getUniformLocation(program, 'u_Sampler');
         var u_Sampler1 = gl.getUniformLocation(program, 'u_Sampler1');
-        // set which texture units to render with.
-        var texture1 = loadTexture(gl, images[0]) // texture unit0
-        var texture2 = loadTexture(gl, images[1]) // texture unit1
+        // set which texture units to render with
+        var texture1 = loadTexture(gl, images[0], true) // texture unit0
+        var texture2 = loadTexture(gl, images[1], false) // texture unit1
         gl.uniform1i(u_Sampler, 0);
         gl.uniform1i(u_Sampler1, 1);
         gl.activeTexture(gl.TEXTURE0);
         gl.bindTexture(gl.TEXTURE_2D, texture1);
+        // gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);   
         gl.activeTexture(gl.TEXTURE1);
-        gl.bindTexture(gl.TEXTURE_2D, texture2);   
+        gl.bindTexture(gl.TEXTURE_2D, texture2); 
         gl.clear(gl.COLOR_BUFFER_BIT);   // Clear <canvas>
         gl.drawArrays(gl.TRIANGLE_STRIP, 0, n); // Draw the rectangle
       });
